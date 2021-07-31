@@ -136,3 +136,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   planetRigidbody: {fileID: 2996302757588688456}
   circleCollider: {fileID: 5330250794120083273}
+  sprite: {fileID: 8957884662232820513}
