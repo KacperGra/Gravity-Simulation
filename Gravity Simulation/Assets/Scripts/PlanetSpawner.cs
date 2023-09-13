@@ -7,18 +7,24 @@ using UnityEngine;
 public class PlanetSpawner : MonoBehaviour
 {
     public const string PlanetTag = "Planet";
-
-    private const int MaximumPlanetNumber = 2000;
-
-    private const int MaximumPlanetsPerFrame = 20;
     public static int planetsToSpawn = 0;
 
+    [Header("References")]
+    [SerializeField] private PlanetSystem _planetSystem;
     [SerializeField] private BoxCollider2D spawnArea;
 
+    [Header("Settings")]
+    [SerializeField] private int _maximumPlanetsPerFrame = 0;
+    [SerializeField] private int _maximumPlanetNumber = 2000;
+
+    private readonly Collider2D[] colliderBuffer = new Collider2D[1000];
+    private bool _isSpawning;
+
     public static PlanetSpawner Instance;
+
     private void Awake()
     {
-        if(Instance != null)
+        if (Instance != null)
         {
             Destroy(this);
         }
@@ -27,41 +33,57 @@ public class PlanetSpawner : MonoBehaviour
     }
 
     private void Start()
-    { 
+    {
+        TagObjectPooler.Instance.Initialize();
+
         StartSpawner();
     }
 
     private void StartSpawner()
     {
-        if (!IsInvoking(nameof(SpawnPlanet)))
+        if (!_isSpawning)
         {
-            InvokeRepeating(nameof(SpawnPlanet), 0f, 0.025f);
+            _isSpawning = true;
+            StartCoroutine(SpawnPlanets());
         }
     }
 
     private void StopSpawner()
     {
-        if(IsInvoking(nameof(SpawnPlanet)))
+        if (_isSpawning)
         {
-            CancelInvoke(nameof(SpawnPlanet));
+            _isSpawning = false;
+            StopCoroutine(SpawnPlanets());
+        }
+    }
+
+    private IEnumerator SpawnPlanets()
+    {
+        while (true)
+        {
+            for (int i = 0; i < _maximumPlanetsPerFrame; ++i)
+            {
+                SpawnPlanet();
+            }
+
+            yield return null;
         }
     }
 
     private void Update()
     {
-        if(Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0))
         {
             var planet = SpawnPlanet();
             planet.transform.position = UtilityClass.GetMousePosition();
         }
-        else if(Input.GetMouseButton(1))
+        else if (Input.GetMouseButton(1))
         {
             var planet = SpawnPlanet();
             planet.transform.position = UtilityClass.GetMousePosition();
         }
 
-
-        if(Planet.planets.Count > MaximumPlanetNumber)
+        if (Planet.Planets.Count > _maximumPlanetNumber)
         {
             StopSpawner();
         }
@@ -70,14 +92,20 @@ public class PlanetSpawner : MonoBehaviour
             StartSpawner();
         }
 
-        Debug.Log($"Number of planets {Planet.planets.Count}");
-        Debug.Log($"Biggest planet size {GetBiggestPlanetSize()}");
+        Debug.Log($"Number of planets {Planet.Planets.Count}");
+    }
+
+    public Collider2D[] GetColliders(Vector3 position, float range, out int amount)
+    {
+        ContactFilter2D contactFilter = new ContactFilter2D();
+        amount = Physics2D.OverlapCircle(position, range, contactFilter, colliderBuffer);
+        return colliderBuffer;
     }
 
     private float GetBiggestPlanetSize()
     {
         float biggestPlanetSize = 0f;
-        foreach (Planet planet in Planet.planets)
+        foreach (Planet planet in Planet.Planets)
         {
             if (planet.transform.localScale.x > biggestPlanetSize)
             {
@@ -89,7 +117,8 @@ public class PlanetSpawner : MonoBehaviour
 
     private GameObject SpawnPlanet()
     {
-        return TagObjectPooler.Spawn(PlanetTag, UtilityClass.RandomPointInBounds(spawnArea.bounds));
+        var planet = TagObjectPooler.Spawn(PlanetTag, UtilityClass.RandomPointInBounds(spawnArea.bounds));
+        return planet;
     }
 
     public static bool IsPlanetInBounds(Vector3 position)

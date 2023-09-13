@@ -5,35 +5,35 @@ using DevKacper.ObjectPooler;
 
 public class Planet : MonoBehaviour
 {
-    public static List<Planet> planets = new List<Planet>(); 
+    public static List<Planet> Planets = new List<Planet>();
 
-    private const float GravityMultiplier = 10f;
-    private const float MaxMass = 5;
-    private const float BaseRadius = 0.075f;
-    private const float BaseMass = 0.05f;
-    private const int MaximumExplosionSize = 100;
-
-    private const float VelocityMultiplier = 0.975f;
-    private const float AttractMultiplier = 0.5f;
-
+    [Header("References")]
     [SerializeField] private Rigidbody2D planetRigidbody;
     [SerializeField] private CircleCollider2D circleCollider;
     [SerializeField] private SpriteRenderer sprite;
+
+    [Header("Settings")]
+    [SerializeField] private float _baseRadius = 0.075f;
+    [SerializeField] private float _baseMass = 0.05f;
+    [SerializeField] private float _gravityMultiplier = 10f;
+    [SerializeField] private float _maxMass = 5;
+    [SerializeField] private int _maximumExplosionSize = 100;
+    [SerializeField] private float _velocityMultiplier = 0.975f;
+    [SerializeField] private float _attractMultiplier = 0.5f;
 
     private bool isMerged;
 
     private void OnEnable()
     {
-        planets.Add(this);
+        Planets.Add(this);
 
-        transform.localScale = new Vector3(BaseRadius / 2f, BaseRadius / 2f, 1f);
-        planetRigidbody.mass = BaseMass;
+        transform.localScale = new Vector3(_baseRadius / 2f, _baseRadius / 2f, 1f);
+        planetRigidbody.mass = _baseMass;
 
         isMerged = false;
         circleCollider.enabled = false;
 
         sprite.color = Random.ColorHSV();
-
         planetRigidbody.AddForce(GetRandomDirection());
 
         Invoke(nameof(EnableCollider), 0.5f);
@@ -41,47 +41,47 @@ public class Planet : MonoBehaviour
 
     private void OnDisable()
     {
-        planets.Remove(this);
+        Planets.Remove(this);
         CancelInvoke();
     }
 
-    private void FixedUpdate()
+    public void UpdateVelocity()
     {
-        if(planetRigidbody.velocity != Vector2.zero)
+        if (planetRigidbody.velocity != Vector2.zero)
         {
-            planetRigidbody.velocity *= VelocityMultiplier;
+            planetRigidbody.velocity *= _velocityMultiplier;
+        }
+    }
+
+    public void AttractPlanets()
+    {
+        if (planetRigidbody.mass != _baseMass)
+        {
+            float attractRange = Mathf.Sqrt(planetRigidbody.mass) * _attractMultiplier;
+
+            var colliders = PlanetSpawner.Instance.GetColliders(transform.position, attractRange, out int amount);
+            for (int i = 0; i < amount; ++i)
+            {
+                var collider = colliders[i];
+                if (collider.TryGetComponent<Planet>(out var planet))
+                {
+                    AttractPlanet(planet);
+                }
+            }
         }
     }
 
     private void EnableCollider()
     {
         circleCollider.enabled = true;
-        InvokeRepeating(nameof(AttractPlanets), 5f, 0.05f);
         InvokeRepeating(nameof(CheckPosition), 0f, 1f);
     }
 
     private void CheckPosition()
     {
-        if(!PlanetSpawner.IsPlanetInBounds(transform.position))
+        if (!PlanetSpawner.IsPlanetInBounds(transform.position))
         {
-            DestroyPlanet();
-        }
-    }
-
-    private void AttractPlanets()
-    {
-        if(planetRigidbody.mass != BaseMass)
-        {
-            float attractRange = Mathf.Sqrt(planetRigidbody.mass) * AttractMultiplier;
-            Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, attractRange);
-            foreach (Collider2D collider in colliders)
-            {
-                var planet = collider.GetComponent<Planet>();
-                if (planet != null)
-                {
-                    AttractPlanet(planet);
-                }
-            }
+            //DestroyPlanet();
         }
     }
 
@@ -93,7 +93,7 @@ public class Planet : MonoBehaviour
         if (distance == 0)
             return;
 
-        float forceMagnitude = GravityMultiplier * (planetRigidbody.mass * ball.planetRigidbody.mass) / Mathf.Pow(distance, 2);
+        float forceMagnitude = _gravityMultiplier * (planetRigidbody.mass * ball.planetRigidbody.mass) / Mathf.Pow(distance, 2);
         Vector3 force = direction.normalized * forceMagnitude;
 
         ball.planetRigidbody.AddForce(force);
@@ -101,7 +101,7 @@ public class Planet : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if(!isMerged)
+        if (!isMerged)
         {
             var planet = collision.collider.GetComponent<Planet>();
             if (planet != null && !planet.isMerged)
@@ -119,7 +119,7 @@ public class Planet : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if(collision.GetComponent<Planet>() == null)
+        if (collision.GetComponent<Planet>() == null)
         {
             CancelInvoke(nameof(EnableCollider));
             EnableCollider();
@@ -130,17 +130,16 @@ public class Planet : MonoBehaviour
     {
         planetRigidbody.mass += planet.planetRigidbody.mass;
 
-
         float newR = Mathf.Sqrt((planet.GetField() + GetField()) / Mathf.PI);
         transform.localScale = new Vector3(newR * 2, newR * 2, 1f);
 
         planet.DestroyPlanet();
 
-        if(planetRigidbody.mass >= MaxMass)
+        if (planetRigidbody.mass >= _maxMass)
         {
-            for(int i = 0; i < (int)planetRigidbody.mass / BaseMass; ++i)
+            for (int i = 0; i < (int)planetRigidbody.mass / _baseMass; ++i)
             {
-                if(i > MaximumExplosionSize)
+                if (i > _maximumExplosionSize)
                 {
                     break;
                 }
@@ -154,7 +153,7 @@ public class Planet : MonoBehaviour
 
     private void DestroyPlanet()
     {
-        gameObject.SetActive(false);
+        TagObjectPooler.DestroyObject("Planet", gameObject);
     }
 
     private Vector2 GetRandomDirection()
